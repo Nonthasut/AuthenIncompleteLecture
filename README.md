@@ -767,3 +767,164 @@ module.exports = {
 }
 ---
 *รอการอัพเดตและแก้ไข้ p.s. เอกสารเนื้อหาในฝั่งของ tutorial ส่วนนี้ยังไม่เสร็จ
+
+เนื้อหา function
+หน้าที่หลักๆคือการ : ให้การ register ที่มี user ซ้ำ
+    if(targetUser){
+        res.status(400).send({message : 'User Already Taken'})
+    } else {
+        const salt = bc.genSaltSync(Number(process.env.SALT_ROUND))
+        const hashedPW = bc.hashSync(password,salt)
+
+	await db.User.create({
+	password: hashedPw,
+	username,
+	name,
+})
+
+	res.status(201)send({message:'Register complete'})
+    }
+	
+};
+
+module.exports = {
+    login,
+    register,
+}
+---
+*รอการอัพเดตและแก้ไข้ p.s. เอกสารเนื้อหาในฝั่งของ tutorial ส่วนนี้ยังไม่เสร็จ
+
+ไฟล์ controller
+
+*update function ใน controller และ path ใน
+const db = require("../models");
+const user = require("./user");
+
+const getTodos = async (req, res) => {
+    const getAll = await db.TodoList.findAll({where: {user_id : req.user.id}})
+    res.status(200).send(getAll);
+};
+
+const getTodoById = async (req,res)=>{
+    const targetId = req.params.id
+    const getId = await db.TodoList.findOne({where:{user_id: targetId}})
+res.status(200).send(getId)
+}
+
+const createTodo = async(req,res)=>{
+    const {task} = req.body
+    const newData = await db.TodoList.create({task, user_id:req.user.id})    
+res.status(201).send(newData)
+}
+
+const removeTodo = async(req,res)=>{
+    const targetId = req.params.id
+    const targetTodo = await db.TodoList.findOne({where: {id:targetId  ,user_id: req.user.id}})
+    await targetTodo.destroy()
+res.status(204).send()    
+
+}
+
+const updateTodo = async(req,res)=>{
+const targetId = req.params.id
+const targetTodo =await db.TodoList.findOne({where:{id:targetId, user_id:req.user.id}})
+const {task} = req.body
+await targetTodo.update({task})
+ res.status(200).send()   
+}
+module.exports = {
+    getTodos,
+    getTodoById,
+    createTodo,
+    removeTodo,
+    updateTodo
+}
+
+---
+
+ไฟล์ routes
+
+const express = require("express");
+const router = express.Router();
+const { getTodos, getTodoById, createTodo,removeTodo, updateTodo } = require("../controllers/todoList");
+const passport = require('passport')
+const auth = passport.authenticate('sonter-authen',{session:false})
+
+router.get('/',auth, getTodos)
+router.get('/:id',auth,getTodoById)
+router.post('/',auth,createTodo)
+router.delete('/:id',auth,removeTodo)
+router.patch('/:id',auth,updateTodo)
+
+module.exports = router;
+
+
+---
+
+ไฟล์ index 
+
+'use strict';
+
+const fs = require('fs');
+const path = require('path');
+const Sequelize = require('sequelize');
+const basename = path.basename(__filename);
+const env = process.env.NODE_ENV || 'development';
+const config = require(__dirname + '/../config/config.json')[env];
+const db = {};
+
+let sequelize;
+if (config.use_env_variable) {
+  sequelize = new Sequelize(process.env[config.use_env_variable], config);
+} else {
+  sequelize = new Sequelize(config.database, config.username, config.password, config);
+}
+
+fs
+  .readdirSync(__dirname)
+  .filter(file => {
+    return (file.indexOf('.') !== 0) && (file !== basename) && (file.slice(-3) === '.js');
+  })
+  .forEach(file => {
+    const model = require(path.join(__dirname, file))(sequelize, Sequelize.DataTypes);
+    db[model.name] = model;
+  });
+
+Object.keys(db).forEach(modelName => {
+  if (db[modelName].associate) {
+    db[modelName].associate(db);
+  }
+});
+
+db.sequelize = sequelize;
+db.Sequelize = Sequelize;
+
+module.exports = db;
+
+
+---
+ไฟล์ pasport
+
+const passport = require("passport");
+const { Strategy, ExtractJwt } = require("passport-jwt");
+const db = require("../models");
+
+const options = {
+    jwtFromRequest: ExtractJwt.fromAuthHeaderAsBearerToken(),
+    secretOrKey: process.env.SECRET_KEY
+};
+
+const jwtStrategy = new Strategy(options, async (payload, done) => {
+    const targetUser = await db.User.findOne({ where: { id: payload.id } });
+
+    if (targetUser) {
+        done(null, targetUser);
+    } else {
+        done(null, false);
+    }
+});
+
+passport.use("sonter-authen", jwtStrategy);
+
+---
+
